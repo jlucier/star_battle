@@ -1,0 +1,21 @@
+{
+    "puzzle_data": {
+        "puzz": "ABBCCDDDABBBCDDDAABBCCCDABBBEDDDAAFBEDDDFFFBEEEFGFFFFFFFGGGGHHFF",
+        "branches": 0,
+        "width": 8,
+        "work": 0,
+        "height": 8,
+        "solved": "0001000000000010001000000000100001000000000000011000000000000100",
+        "ptitle": "KD_Star_8x8_V2-B92-P22",
+        "stars": 1,
+        "lwork": 0
+    },
+    "puzzle_id": "KD_Star_8x8_V2-B92-P22",
+    "success": true,
+    "cookie_data": [
+        "I had many teachers that were great, positive role models and taught me to be a good person and stand up and be a good man. A lot of the principals they taught me still affect how I act sometimes and it's 30 years later.",
+        "                                        -- Kevin James"
+    ],
+    "comments": "",
+    "creation_date": "2018-05-11 09:22:49"
+}

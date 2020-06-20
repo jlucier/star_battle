@@ -1,0 +1,21 @@
+{
+    "puzzle_data": {
+        "puzz": "AAAABBCCDADDDBBCDADDDBBBDDDDDBBEDFFFGGGEDFFFFGGEDFFHGGGEFFFGGGGE",
+        "branches": 0,
+        "solved": "0000001001000000000001000010000000001000000000010001000010000000",
+        "work": 0,
+        "height": 8,
+        "width": 8,
+        "ptitle": "KD_Star_8x8_V2-B12-P9",
+        "stars": 1,
+        "lwork": 0
+    },
+    "puzzle_id": "KD_Star_8x8_V2-B12-P9",
+    "success": true,
+    "cookie_data": [
+        "To us, family means putting your arms around each other and being there.",
+        "                                        -- Barbara Bush"
+    ],
+    "comments": "",
+    "creation_date": "2018-05-10 16:49:15"
+}
