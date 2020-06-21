@@ -3,6 +3,21 @@ from math import ceil
 from pprint import pprint
 
 
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def red(s):
+    return bcolors.FAIL + s + bcolors.ENDC
+
+
 @dataclass(frozen=True)
 class Cell:
     lb: bool = False
@@ -37,9 +52,8 @@ class Board:
         for i, c in enumerate(puzz_string):
             lb = rb = tb = bb = False
 
-            if i % size != 1 and i + 1 < len(
-                puzz_string
-            ):  # we aren't at the end of a row
+            if i % size != 7:
+                # we aren't at the end of a row
                 if c != puzz_string[i + 1]:
                     rb = True
 
@@ -54,7 +68,7 @@ class Board:
                 tb = cells[row - 1][col].bb
             if col > 0:
                 # left border if cell to left has right border
-                lb = cells[row][col - 1].lb
+                lb = cells[row][col - 1].rb
 
             cells[row][col] = Cell(lb=lb, rb=rb, tb=tb, bb=bb)
 
@@ -65,7 +79,7 @@ class Board:
             solution=puzzle_data["solved"],
         )
 
-    def draw(self, cell_size=9):
+    def draw(self, cell_size=9, with_solution=False):
         horiz_border = "\u2504"
         vert_border = "\u250A"
 
@@ -89,11 +103,30 @@ class Board:
             for j, cell in enumerate(row):
                 r = white_space + i * (cell_size // 2) - 1
                 c = white_space + j * (cell_size - 1) + 1
-                board[r][c] = "*"
 
-                if cell.tb:
-                    for x in range(-white_space // 2, ceil(white_space / 2) + 1):
-                        board[r - (white_space - 1)][c + x] = "\u2550"
+                if cell.bb:
+                    for x in range(-white_space // 2 - 1, ceil(white_space / 2) + 2):
+                        board[r + (white_space - 1)][c + x] = red("\u2501")
+
+                    if j == 0:
+                        board[r + (white_space - 1)][0] = red("\u251D")
+                    elif j == self.size - 1:
+                        board[r + (white_space - 1)][-1] = red("\u2525")
+
+                if cell.rb:
+                    for x in range(-white_space // 4, ceil(white_space / 4) + 1):
+                        board[r + x][c + white_space + 1] = red("\u2503")
+
+                    if i == 0:
+                        board[0][c + white_space + 1] = red("\u2530")
+                    elif i == self.size - 1:
+                        board[-1][c + white_space + 1] = red("\u2538")
+
+                if (cell.rb or cell.bb) and i + 1 < self.size and j + 1 < self.size:
+                    board[r + (white_space - 1)][c + white_space + 1] = red("\u254B")
+
+                if with_solution and self.solution[i * self.size + j] == "1":
+                    board[r][c] = "*"
 
         for row in board:
             print("".join(row))
