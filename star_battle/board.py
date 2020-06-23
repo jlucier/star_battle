@@ -52,7 +52,7 @@ class Board:
         for i, c in enumerate(puzz_string):
             lb = rb = tb = bb = False
 
-            if i % size != 7:
+            if i % size != size - 1:
                 # we aren't at the end of a row
                 if c != puzz_string[i + 1]:
                     rb = True

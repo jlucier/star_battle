@@ -51,6 +51,6 @@ def get_random_puzzle():
     return download_puzzle(kind=kind, volume=volume, book=book, puzzle=puzzle)
 
 
-def get_local_puzzle(num=1):
+def get_local_puzzle(num=3):
     with open(Path(__file__).parent / "data" / f"puzzle_{num}.json") as f:
         return json.load(f)["puzzle_data"]
