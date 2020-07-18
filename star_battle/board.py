@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from functools import partial
+import itertools
 from math import ceil
 from pprint import pprint
 
@@ -14,8 +16,11 @@ class bcolors:
     UNDERLINE = "\033[4m"
 
 
-def red(s):
-    return bcolors.FAIL + s + bcolors.ENDC
+def colored(s, color):
+    return color + s + bcolors.ENDC
+
+
+red = partial(colored, color=bcolors.FAIL)
 
 
 @dataclass(frozen=True)
@@ -25,23 +30,17 @@ class Cell:
     tb: bool = False
     bb: bool = False
 
-    def __str__(self):
-        return sum(
-            (
-                "l" if self.lb else "",
-                "r" if self.rb else "",
-                "t" if self.tb else "",
-                "b" if self.bb else "",
-            )
-        )
 
-
-@dataclass(frozen=True)
+@dataclass
 class Board:
     cells: [[Cell]]
     stars: int
     size: int
     solution: str
+    areas: [[(int, int)]] = None
+
+    def __post_init__(self):
+        self.areas = self._get_areas()
 
     @staticmethod
     def from_krazydad(puzzle_data):
@@ -79,7 +78,17 @@ class Board:
             solution=puzzle_data["solved"],
         )
 
-    def draw(self, cell_size=9, with_solution=False):
+    def _is_valid_cell(self, i=0, j=0):
+        return 0 <= i < self.size and 0 <= j < self.size
+
+    def draw(
+        self,
+        cell_size=9,
+        with_solution=False,
+        highlight: set = None,
+        highlight_c=bcolors.OKGREEN,
+    ):
+        highlight = highlight or set()
         horiz_border = "\u2504"
         vert_border = "\u250A"
 
@@ -90,19 +99,26 @@ class Board:
             mid_section = (conn * (cell_size - 2) + corner) * self.size
             return list(f"{start}{mid_section[:-1]}{end}")
 
+        # starting layout
+
         board = [draw_line("\u250C", "\u2510", "\u252C")]
         for i in range(self.size):
             for _ in range(white_space):
                 board.append(draw_line("\u2502", "\u2502", corner="\u2502", conn=" "))
+
             if i != self.size - 1:
                 board.append(draw_line("\u251C", "\u2524", "\u253C"))
 
         board.append(draw_line("\u2514", "\u2518", corner="\u2534", conn="\u2500"))
 
+        # color borders
+
         for i, row in enumerate(self.cells):
             for j, cell in enumerate(row):
                 r = white_space + i * (cell_size // 2) - 1
                 c = white_space + j * (cell_size - 1) + 1
+
+                # make red edges
 
                 if cell.bb:
                     for x in range(-white_space // 2 - 1, ceil(white_space / 2) + 2):
@@ -122,11 +138,65 @@ class Board:
                     elif i == self.size - 1:
                         board[-1][c + white_space + 1] = red("\u2538")
 
-                if (cell.rb or cell.bb) and i + 1 < self.size and j + 1 < self.size:
+                # make red top left or bottom right chars
+
+                if (cell.rb or cell.bb) and self._is_valid_cell(i + 1, j + 1):
                     board[r + (white_space - 1)][c + white_space + 1] = red("\u254B")
+
+                if (cell.lb or cell.tb) and self._is_valid_cell(i - 1, j - 1):
+                    board[r - (white_space - 1)][c - (white_space + 1)] = red("\u254B")
+
+                # add stars
 
                 if with_solution and self.solution[i * self.size + j] == "1":
                     board[r][c] = "*"
 
+                if (i, j) in highlight:
+                    board[r][c] = colored("*", highlight_c)
+
         for row in board:
             print("".join(row))
+
+    def cells_within_bounds(self, row: int, col: int, cells: set = None):
+        c = self.cells[row][col]
+        cells = {(row, col)} if not cells else cells.union({(row, col)})
+
+        # recurse only to cardinal directions
+        for x, y in [(-1, 0), (0, -1), (0, 1), (1, 0)]:
+            new_r = row + x
+            new_c = col + y
+
+            # skip invalid or already visited
+            if not self._is_valid_cell(new_r, new_c) or (new_r, new_c) in cells:
+                continue
+
+            # skip if there's a border between
+            if (
+                (x == -1 and c.tb)
+                or (x == 1 and c.bb)
+                or (y == -1 and c.lb)
+                or (y == 1 and c.rb)
+            ):
+                continue
+
+            cells.update(self.cells_within_bounds(new_r, new_c, cells))
+
+        return cells
+
+    def _get_areas(self):
+        areas = []
+        accounted_for_cells = set()
+
+        for i, j in itertools.product(range(self.size), range(self.size)):
+            # skip cells already in known areas
+            if (i, j) in accounted_for_cells:
+                continue
+
+            # find area cell i,j belongs to
+            a = self.cells_within_bounds(i, j)
+            # account for all cells in said area
+            accounted_for_cells.update(a)
+            # save
+            areas.append(a)
+
+        return areas
