@@ -17,14 +17,6 @@ def solution_to_set(solution):
     return frozenset((i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell)
 
 
-def solution_from_set(solution_set, board, value=False):
-    solution = empty_solution(board, value=value)
-    for i, j in solution_set:
-        solution[i][j] = True
-
-    return solution
-
-
 def update_solution_from_set(board, solution, new_set):
     for i, j in new_set:
         solution[i][j] = True
@@ -112,10 +104,27 @@ def solve_fully_defined_areas(board, solution=None):
 
         if len(solns) > 1:
             if area not in already_revisited:
+                # let's come back to this
                 ordered_areas.append(area)
                 already_revisited.add(area)
 
-            # TODO look for cells that are eliminated by all possible solutions
+            # look for cells that are eliminated by all possible solutions
+            falseys = None
+            for soln in solns:
+                tmp_soln = copy.deepcopy(solution)
+                update_solution_from_set(board, tmp_soln, soln)
+
+                false_cells = {(i, j) for i, j in board.cell_index_iter if tmp_soln[i][j] is False}
+
+                if falseys is None:
+                    falseys = false_cells
+                else:
+                    falseys.intersection_update(false_cells)
+
+            for i, j in falseys:
+                solution[i][j] = False
+
+            # keep cells that are stars in every solution
             s = solns.pop()
             common_cells = reduce(lambda a, b: a.intersection(b), solns, s)
             if len(common_cells):
@@ -135,7 +144,6 @@ def eliminate_contained(board, solution=None):
     solution = solution or empty_solution(board)
 
     def falsify(cells):
-        cells = list(cells)
         for i, j in cells:
             if solution[i][j] is None:
                 solution[i][j] = False
@@ -184,6 +192,8 @@ def brute_force(board, solution=None):
     solution = solution or [[None] * board.size for _ in range(board.size)]
 
     unsolved_areas = [area for area in board.areas if any(solution[r][c] is None for r, c in area)]
+    # solve smallest first to apply most constraints
+    unsolved_areas = sorted(unsolved_areas, key=lambda a: sum(solution[r][c] is None for r, c in a))
 
     if len(unsolved_areas) == 0 and verify_solution(board, solution):
         return solution
