@@ -4,6 +4,8 @@ import itertools
 from math import ceil
 from pprint import pprint
 
+from .board_fetcher import download_puzzle
+
 
 class bcolors:
     HEADER = "\033[95m"
@@ -42,8 +44,12 @@ class Board:
         self._areas = self._get_areas()
         self._area_lookup = {tup: a for a in self.areas for tup in a}
 
-    @staticmethod
-    def from_krazydad(puzzle_data):
+    @classmethod
+    def get_krazy_dad(cls, *args, **kwargs):
+        return cls.from_krazydad(download_puzzle(*args, **kwargs))
+
+    @classmethod
+    def from_krazydad(cls, puzzle_data):
         size = puzzle_data["height"]
 
         cells = [[None] * size for _ in range(size)]
@@ -78,7 +84,7 @@ class Board:
             col = i % size
             solution[row][col] = c == "1"
 
-        return Board(cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,)
+        return cls(cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,)
 
     @property
     def cell_index_iter(self):
@@ -92,6 +98,15 @@ class Board:
             highlight={
                 (i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell
             }
+        )
+
+    def draw_solution_with_ruled_out(self, solution, **kwargs):
+        self.draw(
+            highlight={
+                (i, j): bcolors.FAIL if solution[i][j] is False else bcolors.OKGREEN
+                for i, j in self.cell_index_iter
+                if solution[i][j] is not None
+            },
         )
 
     def draw(
@@ -212,3 +227,7 @@ class Board:
 
     def area_for_cell(self, row, col):
         return self._area_lookup[(row, col)]
+
+    def check_solution(self, candidate):
+        for i, j in self.cell_index_iter:
+            assert candidate[i][j] == self.solution[i][j], "Incorrect solution"

@@ -1,8 +1,12 @@
 import copy
 from functools import reduce
 import itertools
+import time
 
 from .board import bcolors
+
+
+# Solution data helpers
 
 
 def empty_solution(board, value=None):
@@ -28,6 +32,9 @@ def update_solution_from_set(board, solution, new_set):
     for i, j in board.cell_index_iter:
         if not can_place_star(board, i, j, solution):
             solution[i][j] = False
+
+
+# Solve helpers
 
 
 def can_place_star(board, row, col, solution):
@@ -82,7 +89,7 @@ def solve_area(board, area, solution=None):
         all(solution[i][j] is not None for i, j in area)
         and sum(solution[i][j] for i, j in area) == board.stars
     ):
-        ret.add(solution_to_set(copy.deepcopy(solution)))
+        ret.add(solution_to_set(solution))
 
     return ret
 
@@ -97,7 +104,8 @@ def solve_fully_defined_areas(board, solution=None):
     while len(ordered_areas):
         area = ordered_areas.pop(0)
 
-        if len(area) > 6:
+        # skip areas with too many cells undefined
+        if sum(solution[i][j] is None for i, j in area) > 6:
             continue
 
         solns = solve_area(board, area, solution)
@@ -107,6 +115,7 @@ def solve_fully_defined_areas(board, solution=None):
                 ordered_areas.append(area)
                 already_revisited.add(area)
 
+            # TODO look for cells that are eliminated by all possible solutions
             s = solns.pop()
             common_cells = reduce(lambda a, b: a.intersection(b), solns, s)
             if len(common_cells):
@@ -128,7 +137,8 @@ def eliminate_contained(board, solution=None):
     def falsify(cells):
         cells = list(cells)
         for i, j in cells:
-            solution[i][j] = False
+            if solution[i][j] is None:
+                solution[i][j] = False
 
     # areas containing entire columns or rows
 
@@ -149,10 +159,14 @@ def eliminate_contained(board, solution=None):
             # row is entirely contained in area, byyeee other cells
             falsify((i, j) for i, j in areas.pop() if j != c)
 
-    # areas fully contained by row or col
+    # (unsolved cells of) areas fully contained by row or col
 
     for area in board.areas:
-        rows, cols = map(set, zip(*area))
+        unsolved_cells = list((i, j) for i, j in area if solution[i][j] is None)
+        if len(unsolved_cells) == 0:
+            continue
+
+        rows, cols = map(set, zip(*unsolved_cells))
         if len(rows) == 1:
             # all cells in one row
             r = rows.pop()
@@ -169,25 +183,21 @@ def eliminate_contained(board, solution=None):
 def brute_force(board, solution=None):
     solution = solution or [[None] * board.size for _ in range(board.size)]
 
-    # work through cells starting with smallest areas
-    for i, j in itertools.chain(*sorted(board.areas, key=len)):
-        if solution[i][j] is None:
-            options = [False]
-            if can_place_star(board, i, j, solution):
-                options.append(True)
+    unsolved_areas = [area for area in board.areas if any(solution[r][c] is None for r, c in area)]
 
-            for v in options:
-                solution[i][j] = v
-                result = brute_force(board, solution)
-
-                # if we got a solution, exit
-                if result:
-                    return result
-
-                solution[i][j] = None
-
-    if all(c is not None for row in solution for c in row) and verify_solution(board, solution):
+    if len(unsolved_areas) == 0 and verify_solution(board, solution):
         return solution
+
+    for a in unsolved_areas:
+        for a_soln in solve_area(board, a, solution):
+            tmp_soln = copy.deepcopy(solution)
+            update_solution_from_set(board, tmp_soln, a_soln)
+
+            # recurse with area solution applied
+            res = brute_force(board, tmp_soln)
+
+            if res:
+                return res
 
     return None
 
@@ -195,23 +205,23 @@ def brute_force(board, solution=None):
 def solve(board):
     """ Top level solve procedure for a board """
 
-    # solve the fully defined areas
-    solution = solve_fully_defined_areas(board)
+    past_solution = set()
+    solution = None
 
-    # look for forced false cells
-    solution = eliminate_contained(board, solution)
-    # TODO area contianed entirely in row / col
+    while True:
+        # look for forced false cells
+        solution = eliminate_contained(board, solution)
 
-    board.draw(
-        highlight={
-            (i, j): bcolors.FAIL if solution[i][j] is False else bcolors.OKGREEN
-            for i, j in board.cell_index_iter
-            if solution[i][j] is not None
-        },
-    )
-    input("hey")
+        # solve the fully defined areas
+        solution = solve_fully_defined_areas(board, solution)
 
-    # nothing left, brute that baby
+        new_soln = solution_to_set(solution)
+        if past_solution == new_soln:
+            break
+
+        past_solution = new_soln
+
+    # BRUTE!
     return brute_force(board, solution)
 
 
