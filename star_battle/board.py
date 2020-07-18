@@ -36,11 +36,11 @@ class Board:
     cells: [[Cell]]
     stars: int
     size: int
-    solution: str
-    areas: [[(int, int)]] = None
+    solution: [[bool]]
 
     def __post_init__(self):
-        self.areas = self._get_areas()
+        self._areas = self._get_areas()
+        self._area_lookup = {tup: a for a in self.areas for tup in a}
 
     @staticmethod
     def from_krazydad(puzzle_data):
@@ -71,14 +71,18 @@ class Board:
 
             cells[row][col] = Cell(lb=lb, rb=rb, tb=tb, bb=bb)
 
+        # reformat solution
+        solution = [[False] * size for _ in range(size)]
+        for i, c in enumerate(puzzle_data["solved"]):
+            row = i // size
+            col = i % size
+            solution[row][col] = c == "1"
+
         return Board(
-            cells=cells,
-            size=size,
-            stars=puzzle_data["stars"],
-            solution=puzzle_data["solved"],
+            cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,
         )
 
-    def _is_valid_cell(self, i=0, j=0):
+    def is_valid_cell(self, i=0, j=0):
         return 0 <= i < self.size and 0 <= j < self.size
 
     def draw(
@@ -140,15 +144,15 @@ class Board:
 
                 # make red top left or bottom right chars
 
-                if (cell.rb or cell.bb) and self._is_valid_cell(i + 1, j + 1):
+                if (cell.rb or cell.bb) and self.is_valid_cell(i + 1, j + 1):
                     board[r + (white_space - 1)][c + white_space + 1] = red("\u254B")
 
-                if (cell.lb or cell.tb) and self._is_valid_cell(i - 1, j - 1):
+                if (cell.lb or cell.tb) and self.is_valid_cell(i - 1, j - 1):
                     board[r - (white_space - 1)][c - (white_space + 1)] = red("\u254B")
 
                 # add stars
 
-                if with_solution and self.solution[i * self.size + j] == "1":
+                if with_solution and self.solution[i][j]:
                     board[r][c] = "*"
 
                 if (i, j) in highlight:
@@ -167,7 +171,7 @@ class Board:
             new_c = col + y
 
             # skip invalid or already visited
-            if not self._is_valid_cell(new_r, new_c) or (new_r, new_c) in cells:
+            if not self.is_valid_cell(new_r, new_c) or (new_r, new_c) in cells:
                 continue
 
             # skip if there's a border between
@@ -200,3 +204,10 @@ class Board:
             areas.append(a)
 
         return areas
+
+    @property
+    def areas(self):
+        return self._areas
+
+    def area_for_cell(self, row, col):
+        return self._area_lookup[(row, col)]
