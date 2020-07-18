@@ -28,12 +28,7 @@ def parse_puzzle_data(page_content):
 def download_puzzle(kind=10, volume=1, book=1, puzzle=1):
     resp = requests.get(
         BASE_URL,
-        params={
-            "kind": kind,
-            "volumeNumber": volume,
-            "bookNumber": book,
-            "puzzleNumber": puzzle,
-        },
+        params={"kind": kind, "volumeNumber": volume, "bookNumber": book, "puzzleNumber": puzzle,},
     )
 
     if resp.status_code != 200:

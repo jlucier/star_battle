@@ -1,6 +1,6 @@
 import time
 
-from star_battle import Board, get_local_puzzle, solve, verify_solution
+from star_battle import *
 
 board = Board.from_krazydad(get_local_puzzle())
 
@@ -9,8 +9,5 @@ solution = solve(board)
 end = time.time()
 print("Got solution?", solution is not None, f"in {end - start:.2f}")
 
-board.draw(
-    highlight={
-        (i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell
-    }
-)
+if solution:
+    board.draw_solution(solution)

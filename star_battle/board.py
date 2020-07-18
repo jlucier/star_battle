@@ -78,19 +78,24 @@ class Board:
             col = i % size
             solution[row][col] = c == "1"
 
-        return Board(
-            cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,
-        )
+        return Board(cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,)
+
+    @property
+    def cell_index_iter(self):
+        return itertools.product(range(self.size), range(self.size))
 
     def is_valid_cell(self, i=0, j=0):
         return 0 <= i < self.size and 0 <= j < self.size
 
+    def draw_solution(self, solution, **kwargs):
+        self.draw(
+            highlight={
+                (i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell
+            }
+        )
+
     def draw(
-        self,
-        cell_size=9,
-        with_solution=False,
-        highlight: set = None,
-        highlight_c=bcolors.OKGREEN,
+        self, cell_size=9, with_solution=False, highlight: set = None, highlight_c=bcolors.OKGREEN,
     ):
         highlight = highlight or set()
         horiz_border = "\u2504"
@@ -156,7 +161,8 @@ class Board:
                     board[r][c] = "*"
 
                 if (i, j) in highlight:
-                    board[r][c] = colored("*", highlight_c)
+                    color = highlight[(i, j)] if isinstance(highlight, dict) else highlight_c
+                    board[r][c] = colored("*", color)
 
         for row in board:
             print("".join(row))
@@ -175,12 +181,7 @@ class Board:
                 continue
 
             # skip if there's a border between
-            if (
-                (x == -1 and c.tb)
-                or (x == 1 and c.bb)
-                or (y == -1 and c.lb)
-                or (y == 1 and c.rb)
-            ):
+            if (x == -1 and c.tb) or (x == 1 and c.bb) or (y == -1 and c.lb) or (y == 1 and c.rb):
                 continue
 
             cells.update(self.cells_within_bounds(new_r, new_c, cells))
@@ -191,7 +192,7 @@ class Board:
         areas = []
         accounted_for_cells = set()
 
-        for i, j in itertools.product(range(self.size), range(self.size)):
+        for i, j in self.cell_index_iter:
             # skip cells already in known areas
             if (i, j) in accounted_for_cells:
                 continue
@@ -201,7 +202,7 @@ class Board:
             # account for all cells in said area
             accounted_for_cells.update(a)
             # save
-            areas.append(a)
+            areas.append(frozenset(a))
 
         return areas
 
