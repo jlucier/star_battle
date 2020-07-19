@@ -15,18 +15,7 @@ class Solution:
         return type(self)(self._board, copy.deepcopy(self._data))
 
     def __getitem__(self, i):
-        if isinstance(i, int):
-            return self._data[i]
-
-        assert len(i) == 2
-        return self._data[i[0]][i[1]]
-
-    def __setitem__(self, i, value):
-        if isinstance(i, int):
-            self._data[i] = value
-
-        assert len(i) == 2
-        self._data[i[0]][i[1]] = value
+        return self._data[i]
 
     def __iter__(self):
         return iter(self._data)
@@ -45,7 +34,7 @@ class Solution:
 
     def _indices_with_value(self, value, area=None):
         cells = area or self.cell_index_iter
-        return [(i, j) for i, j in cells if self[i, j] is value]
+        return [(i, j) for i, j in cells if self[i][j] is value]
 
     def get_star_cells(self, **kwargs):
         return self._indices_with_value(True, **kwargs)
@@ -70,11 +59,11 @@ class Solution:
 
     def update_from_set(self, soln_set):
         for i, j in soln_set:
-            self[i, j] = True
+            self[i][j] = True
 
         for i, j in self.cell_index_iter:
             if not self.can_place_star(i, j):
-                self[i, j] = False
+                self[i][j] = False
 
     def can_place_star(self, row, col):
         """ Check if row,col can contain a star based board / running solution """
@@ -87,13 +76,13 @@ class Solution:
             if (i == 0 and j == 0) or not self._board.is_valid_cell(r, c):
                 continue
 
-            if self[r, c]:
+            if self[r][c]:
                 return False
 
         # check counts for areas, rows, cols
 
         # determine if we need to add one based on whether the currect cell has a star already
-        add = 0 if self[row, col] else 1
+        add = 0 if self[row][col] else 1
 
         sol_sum = lambda it: sum(map(bool, it))
 
@@ -103,7 +92,7 @@ class Solution:
                 sol_sum(self[row]),  # stars in the row
                 sol_sum(self[i][col] for i in range(self.size)),  # stars in the column
                 sol_sum(
-                    self[i, j] for i, j in self._board.area_for_cell(row, col)
+                    self[i][j] for i, j in self._board.area_for_cell(row, col)
                 ),  # stars in the area
             )
         )
@@ -114,7 +103,7 @@ class Solution:
             return False
 
         for i, j in self.cell_index_iter:
-            if self[i, j] and not self.can_place_star(i, j):
+            if self[i][j] and not self.can_place_star(i, j):
                 return False
 
         return True
@@ -130,15 +119,15 @@ def solve_area(board, area, solution=None):
     ret = set()
 
     for i, j in area:
-        if solution[i, j] is None:
+        if solution[i][j] is None:
             options = [False]
             if solution.can_place_star(i, j):
                 options.append(True)
 
             for v in options:
-                solution[i, j] = v
+                solution[i][j] = v
                 ret.update(solve_area(board, area, solution))
-                solution[i, j] = None
+                solution[i][j] = None
 
     if solution.count_unknown(area=area) == 0 and solution.count_stars(area=area) == board.stars:
         ret.add(solution.to_set())
@@ -180,7 +169,7 @@ def solve_fully_defined_areas(board, solution=None):
                     falseys.intersection_update(tmp_soln.false_cells())
 
             for i, j in falseys:
-                solution[i, j] = False
+                solution[i][j] = False
 
             # keep cells that are stars in every solution
             s = solns.pop()
@@ -203,8 +192,8 @@ def eliminate_contained(board, solution=None):
 
     def falsify(cells):
         for i, j in cells:
-            if solution[i, j] is None:
-                solution[i, j] = False
+            if solution[i][j] is None:
+                solution[i][j] = False
 
     # areas containing entire columns or rows
 
@@ -293,6 +282,6 @@ def solve(board):
         past_solution = new_soln
 
     # board.draw_solution_with_ruled_out(solution)
-    # print("Undefined:", sum(solution[i, j] is None for i,j in board.cell_index_iter))
+    # print("Undefined:", sum(solution[i][j] is None for i,j in board.cell_index_iter))
     # BRUTE!
     return brute_force(board, solution)
