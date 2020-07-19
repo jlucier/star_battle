@@ -6,88 +6,148 @@ import time
 from .board import bcolors
 
 
-# Solution data helpers
+class Solution:
+    def __init__(self, board, data=None):
+        self._board = board
+        self._data = data or [[None] * self._board.size for _ in range(self._board.size)]
 
+    def copy(self):
+        return type(self)(self._board, copy.deepcopy(self._data))
 
-def empty_solution(board, value=None):
-    return [[value] * board.size for _ in range(board.size)]
+    def __getitem__(self, i):
+        if isinstance(i, int):
+            return self._data[i]
 
+        assert len(i) == 2
+        return self._data[i[0]][i[1]]
 
-def solution_to_set(solution):
-    return frozenset((i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell)
+    def __setitem__(self, i, value):
+        if isinstance(i, int):
+            self._data[i] = value
 
+        assert len(i) == 2
+        self._data[i[0]][i[1]] = value
 
-def update_solution_from_set(board, solution, new_set):
-    for i, j in new_set:
-        solution[i][j] = True
+    def __iter__(self):
+        return iter(self._data)
 
-    for i, j in board.cell_index_iter:
-        if not can_place_star(board, i, j, solution):
-            solution[i][j] = False
+    @property
+    def size(self):
+        return self._board.size
+
+    @property
+    def stars(self):
+        return self._board.stars
+
+    @property
+    def cell_index_iter(self):
+        return self._board.cell_index_iter
+
+    def _indices_with_value(self, value, area=None):
+        cells = area or self.cell_index_iter
+        return [(i, j) for i, j in cells if self[i, j] is value]
+
+    def get_star_cells(self, **kwargs):
+        return self._indices_with_value(True, **kwargs)
+
+    def false_cells(self, **kwargs):
+        return self._indices_with_value(False, **kwargs)
+
+    def unknown_cells(self, **kwargs):
+        return self._indices_with_value(None, **kwargs)
+
+    def count_stars(self, **kwargs):
+        return len(self.get_star_cells(**kwargs))
+
+    def count_false(self, **kwargs):
+        return len(self.false_cells(**kwargs))
+
+    def count_unknown(self, **kwargs):
+        return len(self.unknown_cells(**kwargs))
+
+    def to_set(self):
+        return frozenset(self.get_star_cells())
+
+    def update_from_set(self, soln_set):
+        for i, j in soln_set:
+            self[i, j] = True
+
+        for i, j in self.cell_index_iter:
+            if not self.can_place_star(i, j):
+                self[i, j] = False
+
+    def can_place_star(self, row, col):
+        """ Check if row,col can contain a star based board / running solution """
+
+        # check neighbors (no start can neighbor another)
+        for i, j in itertools.product(range(-1, 2), range(-1, 2)):
+            r = row + i
+            c = col + j
+
+            if (i == 0 and j == 0) or not self._board.is_valid_cell(r, c):
+                continue
+
+            if self[r, c]:
+                return False
+
+        # check counts for areas, rows, cols
+
+        # determine if we need to add one based on whether the currect cell has a star already
+        add = 0 if self[row, col] else 1
+
+        sol_sum = lambda it: sum(map(bool, it))
+
+        return all(
+            count + add <= self.stars
+            for count in (
+                sol_sum(self[row]),  # stars in the row
+                sol_sum(self[i][col] for i in range(self.size)),  # stars in the column
+                sol_sum(
+                    self[i, j] for i, j in self._board.area_for_cell(row, col)
+                ),  # stars in the area
+            )
+        )
+
+    def verify(self):
+        # check number of stars
+        if not sum(sum(row) for row in self) == self._board.stars * self._board.size:
+            return False
+
+        for i, j in self.cell_index_iter:
+            if self[i, j] and not self.can_place_star(i, j):
+                return False
+
+        return True
 
 
 # Solve helpers
 
 
-def can_place_star(board, row, col, solution):
-    """ Check if row,col can contain a star based board / running solution """
-
-    # check neighbors (no start can neighbor another)
-    for i, j in itertools.product(range(-1, 2), range(-1, 2)):
-        r = row + i
-        c = col + j
-
-        if (i == 0 and j == 0) or not board.is_valid_cell(r, c):
-            continue
-
-        if solution[r][c]:
-            return False
-
-    # check counts for areas, rows, cols
-
-    # determine if we need to add one based on whether the currect cell has a star already
-    add = 0 if solution[row][col] else 1
-
-    sol_sum = lambda it: sum(map(bool, it))
-
-    return all(
-        count + add <= board.stars
-        for count in (
-            sol_sum(solution[row]),  # stars in the row
-            sol_sum(solution[i][col] for i in range(board.size)),  # stars in the column
-            sol_sum(solution[i][j] for i, j in board.area_for_cell(row, col)),  # stars in the area
-        )
-    )
-
-
 def solve_area(board, area, solution=None):
     """ Get solutions for a certain area given a working solution """
 
-    solution = solution or empty_solution(board)
+    solution = solution or Solution(board)
     ret = set()
 
     for i, j in area:
-        if solution[i][j] is None:
+        if solution[i, j] is None:
             options = [False]
-            if can_place_star(board, i, j, solution):
+            if solution.can_place_star(i, j):
                 options.append(True)
 
             for v in options:
-                solution[i][j] = v
+                solution[i, j] = v
                 ret.update(solve_area(board, area, solution))
-                solution[i][j] = None
+                solution[i, j] = None
 
-    if (
-        all(solution[i][j] is not None for i, j in area)
-        and sum(solution[i][j] for i, j in area) == board.stars
-    ):
-        ret.add(solution_to_set(solution))
+    if solution.count_unknown(area=area) == 0 and solution.count_stars(area=area) == board.stars:
+        ret.add(solution.to_set())
 
     return ret
 
 
 def solve_fully_defined_areas(board, solution=None):
-    solution = solution or empty_solution(board)
+    solution = solution or Solution(board)
 
     ordered_areas = list(sorted(board.areas, key=len))
 
@@ -97,7 +157,7 @@ def solve_fully_defined_areas(board, solution=None):
         area = ordered_areas.pop(0)
 
         # skip areas with too many cells undefined
-        if sum(solution[i][j] is None for i, j in area) > 6:
+        if solution.count_unknown(area=area) > 6:
             continue
 
         solns = solve_area(board, area, solution)
@@ -111,42 +171,40 @@ def solve_fully_defined_areas(board, solution=None):
             # look for cells that are eliminated by all possible solutions
             falseys = None
             for soln in solns:
-                tmp_soln = copy.deepcopy(solution)
-                update_solution_from_set(board, tmp_soln, soln)
-
-                false_cells = {(i, j) for i, j in board.cell_index_iter if tmp_soln[i][j] is False}
+                tmp_soln = solution.copy()
+                tmp_soln.update_from_set(soln)
 
                 if falseys is None:
-                    falseys = false_cells
+                    falseys = set(tmp_soln.false_cells())
                 else:
-                    falseys.intersection_update(false_cells)
+                    falseys.intersection_update(tmp_soln.false_cells())
 
             for i, j in falseys:
-                solution[i][j] = False
+                solution[i, j] = False
 
             # keep cells that are stars in every solution
             s = solns.pop()
             common_cells = reduce(lambda a, b: a.intersection(b), solns, s)
             if len(common_cells):
-                update_solution_from_set(board, solution, common_cells)
+                solution.update_from_set(common_cells)
 
         else:
             # something we revisted became determined, reset revisit history
             if area in already_revisited:
                 already_revisited.clear()
 
-            update_solution_from_set(board, solution, solns.pop())
+            solution.update_from_set(solns.pop())
 
     return solution
 
 
 def eliminate_contained(board, solution=None):
-    solution = solution or empty_solution(board)
+    solution = solution or Solution(board)
 
     def falsify(cells):
         for i, j in cells:
-            if solution[i][j] is None:
-                solution[i][j] = False
+            if solution[i, j] is None:
+                solution[i, j] = False
 
     # areas containing entire columns or rows
 
@@ -170,7 +228,7 @@ def eliminate_contained(board, solution=None):
     # (unsolved cells of) areas fully contained by row or col
 
     for area in board.areas:
-        unsolved_cells = list((i, j) for i, j in area if solution[i][j] is None)
+        unsolved_cells = solution.unknown_cells(area=area)
         if len(unsolved_cells) == 0:
             continue
 
@@ -189,20 +247,23 @@ def eliminate_contained(board, solution=None):
 
 
 def brute_force(board, solution=None):
-    solution = solution or [[None] * board.size for _ in range(board.size)]
+    solution = solution or Solution(board)
 
-    unsolved_areas = [area for area in board.areas if any(solution[r][c] is None for r, c in area)]
+    unsolved_areas = [area for area in board.areas if solution.count_unknown(area=area)]
     # solve smallest first to apply most constraints
-    unsolved_areas = sorted(unsolved_areas, key=lambda a: sum(solution[r][c] is None for r, c in a))
+    unsolved_areas = sorted(unsolved_areas, key=lambda a: solution.count_unknown(area=a))
 
-    if len(unsolved_areas) == 0 and verify_solution(board, solution):
+    if len(unsolved_areas) == 0 and solution.verify():
         return solution
 
     for a in unsolved_areas:
+        next_solns = []
         for a_soln in solve_area(board, a, solution):
-            tmp_soln = copy.deepcopy(solution)
-            update_solution_from_set(board, tmp_soln, a_soln)
+            tmp_soln = solution.copy()
+            tmp_soln.update_from_set(a_soln)
+            next_solns.append(tmp_soln)
 
+        for tmp_soln in sorted(next_solns, key=lambda s: s.count_unknown()):
             # recurse with area solution applied
             res = brute_force(board, tmp_soln)
 
@@ -225,24 +286,13 @@ def solve(board):
         # solve the fully defined areas
         solution = solve_fully_defined_areas(board, solution)
 
-        new_soln = solution_to_set(solution)
+        new_soln = solution.to_set()
         if past_solution == new_soln:
             break
 
         past_solution = new_soln
 
+    # board.draw_solution_with_ruled_out(solution)
+    # print("Undefined:", sum(solution[i, j] is None for i,j in board.cell_index_iter))
     # BRUTE!
     return brute_force(board, solution)
-
-
-def verify_solution(board, solution):
-    # check number of stars
-    if not sum(sum(row) for row in solution) == board.stars * board.size:
-        return False
-
-    for i, row in enumerate(solution):
-        for j, cell in enumerate(row):
-            if cell and not can_place_star(board, i, j, solution):
-                return False
-
-    return True
