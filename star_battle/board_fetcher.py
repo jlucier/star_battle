@@ -29,6 +29,13 @@ def download_puzzle(kind=10, volume=1, book=1, puzzle=1):
     resp = requests.get(
         BASE_URL,
         params={"kind": kind, "volumeNumber": volume, "bookNumber": book, "puzzleNumber": puzzle,},
+        headers={
+            # dirty things (prevents us from getting blocked
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko)"
+                " Chrome/84.0.4147.89 Safari/537.36"
+            )
+        },
     )
 
     if resp.status_code != 200:

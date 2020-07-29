@@ -179,8 +179,21 @@ class Board:
                     color = highlight[(i, j)] if isinstance(highlight, dict) else highlight_c
                     board[r][c] = colored("*", color)
 
-        for row in board:
-            print("".join(row))
+        for i, row in enumerate(board):
+            # inverse equation from above
+            grid_row = (i - white_space + 1) / (cell_size // 2)
+            grid_row = int(grid_row) if int(grid_row) == grid_row else None
+            print("".join(row) + (f" {grid_row}" if grid_row is not None else ""))
+
+        final_row = ""
+        for j in range(len(board[0])):
+            # inverse equation from above
+            grid_col = (j - white_space - 1) / (cell_size - 1)
+            grid_col = int(grid_col) if int(grid_col) == grid_col else None
+
+            final_row += str(grid_col) if grid_col is not None else " "
+
+        print(final_row)
 
     def cells_within_bounds(self, row: int, col: int, cells: set = None):
         c = self.cells[row][col]
