@@ -100,14 +100,16 @@ class Board:
             }
         )
 
-    def draw_solution_with_ruled_out(self, solution, **kwargs):
-        self.draw(
-            highlight={
+    def draw_solution_with_ruled_out(self, solution, highlight=None, **kwargs):
+        highlight = dict(highlight or {})
+        highlight.update(
+            {
                 (i, j): bcolors.FAIL if solution[i][j] is False else bcolors.OKGREEN
                 for i, j in self.cell_index_iter
                 if solution[i][j] is not None
-            },
+            }
         )
+        self.draw(highlight=highlight)
 
     def draw(
         self, cell_size=9, with_solution=False, highlight: set = None, highlight_c=bcolors.OKGREEN,
