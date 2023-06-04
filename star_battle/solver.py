@@ -2,6 +2,7 @@ import copy
 import itertools
 import multiprocessing as mp
 from functools import reduce
+from queue import Empty
 
 
 class Solution:
@@ -288,7 +289,7 @@ def _parallel_solve(board, solution):
         while True:
             try:
                 soln = out.get(timeout=1)
-            except:
+            except Empty:
                 pass
             else:
                 return soln
