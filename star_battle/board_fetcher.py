@@ -28,7 +28,12 @@ def parse_puzzle_data(page_content):
 def download_puzzle(kind=10, volume=1, book=1, puzzle=1):
     resp = requests.get(
         BASE_URL,
-        params={"kind": kind, "volumeNumber": volume, "bookNumber": book, "puzzleNumber": puzzle,},
+        params={
+            "kind": KINDS[kind],
+            "volumeNumber": volume,
+            "bookNumber": book,
+            "puzzleNumber": puzzle,
+        },
         headers={
             # dirty things (prevents us from getting blocked
             "User-Agent": (
@@ -45,11 +50,12 @@ def download_puzzle(kind=10, volume=1, book=1, puzzle=1):
 
 
 def get_random_puzzle():
-    kind = KINDS[random.choice(list(KINDS.keys()))]
+    kind = random.choice(list(KINDS.keys()))
     volume = random.choice(VOLUMES)
     book = random.choice(BOOKS)
     puzzle = random.choice(PUZZLES)
 
+    print(f"Got kind={kind}, volume={volume}, book={book}, puzzle={puzzle}")
     return download_puzzle(kind=kind, volume=volume, book=book, puzzle=puzzle)
 
 

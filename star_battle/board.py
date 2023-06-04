@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import partial
 import itertools
 from math import ceil
-from pprint import pprint
 
 from .board_fetcher import download_puzzle
 
@@ -35,10 +34,10 @@ class Cell:
 
 @dataclass
 class Board:
-    cells: [[Cell]]
+    cells: list[list[Cell]]
     stars: int
     size: int
-    solution: [[bool]]
+    solution: list[list[bool]]
 
     def __post_init__(self):
         self._areas = self._get_areas()
@@ -84,7 +83,12 @@ class Board:
             col = i % size
             solution[row][col] = c == "1"
 
-        return cls(cells=cells, size=size, stars=puzzle_data["stars"], solution=solution,)
+        return cls(
+            cells=cells,
+            size=size,
+            stars=puzzle_data["stars"],
+            solution=solution,
+        )
 
     @property
     def cell_index_iter(self):
@@ -93,14 +97,17 @@ class Board:
     def is_valid_cell(self, i=0, j=0):
         return 0 <= i < self.size and 0 <= j < self.size
 
-    def draw_solution(self, solution, **kwargs):
+    def draw_solution(self, solution):
         self.draw(
             highlight={
-                (i, j) for i, row in enumerate(solution) for j, cell in enumerate(row) if cell
+                (i, j): bcolors.OKGREEN
+                for i, row in enumerate(solution)
+                for j, cell in enumerate(row)
+                if cell
             }
         )
 
-    def draw_solution_with_ruled_out(self, solution, highlight=None, **kwargs):
+    def draw_solution_with_ruled_out(self, solution, highlight=None):
         highlight = dict(highlight or {})
         highlight.update(
             {
@@ -112,13 +119,13 @@ class Board:
         self.draw(highlight=highlight)
 
     def draw(
-        self, cell_size=9, with_solution=False, highlight: set = None, highlight_c=bcolors.OKGREEN,
+        self,
+        cell_size=9,
+        with_solution=False,
+        highlight: dict | None = None,
+        highlight_c=bcolors.OKGREEN,
     ):
-        highlight = highlight or set()
-        horiz_border = "\u2504"
-        vert_border = "\u250A"
-
-        full_len = (cell_size - 1) * self.size
+        highlight = highlight or dict()
         white_space = cell_size // 2 - 1
 
         def draw_line(start, end, corner="", conn="\u2500"):
@@ -193,11 +200,18 @@ class Board:
             grid_col = (j - white_space - 1) / (cell_size - 1)
             grid_col = int(grid_col) if int(grid_col) == grid_col else None
 
-            final_row += str(grid_col) if grid_col is not None else " "
+            if grid_col is not None:
+                str_label = str(grid_col)
+                if len(str_label) > 1:
+                    final_row = final_row[:-1] + str_label
+                else:
+                    final_row += str_label
+            else:
+                final_row += " "
 
         print(final_row)
 
-    def cells_within_bounds(self, row: int, col: int, cells: set = None):
+    def cells_within_bounds(self, row: int, col: int, cells: set | None = None):
         c = self.cells[row][col]
         cells = {(row, col)} if not cells else cells.union({(row, col)})
 

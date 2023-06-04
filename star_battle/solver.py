@@ -1,9 +1,7 @@
 import copy
-from functools import reduce
 import itertools
-import time
-
-from .board import bcolors
+import multiprocessing as mp
+from functools import reduce
 
 
 class Solution:
@@ -60,7 +58,7 @@ class Solution:
         return len(self.unknown_cells(**kwargs))
 
     def to_set(self):
-        """ Represent solution as all known cell values """
+        """Represent solution as all known cell values"""
 
         return frozenset(
             (i, j, self[i][j]) for i, j in self.cell_index_iter if self[i][j] is not None
@@ -77,7 +75,7 @@ class Solution:
         return self
 
     def can_place_star(self, row, col):
-        """ Check if row,col can contain a star based board / running solution """
+        """Check if row,col can contain a star based board / running solution"""
 
         # check neighbors (no start can neighbor another)
         for i, j in itertools.product(range(-1, 2), range(-1, 2)):
@@ -110,7 +108,10 @@ class Solution:
 
     def verify(self):
         # check number of stars
-        if not sum(sum(row) for row in self) == self._board.stars * self._board.size:
+        if (
+            self.count_unknown()
+            or not sum(sum(row) for row in self) == self._board.stars * self._board.size
+        ):
             return False
 
         for i, j in self.cell_index_iter:
@@ -133,12 +134,15 @@ class Solution:
 
 
 def solve_area(board, area, solution=None):
-    """ Get solutions for a certain area given a working solution """
+    """Get solutions for a certain area given a working solution"""
 
     solution = solution or Solution(board)
     ret = set()
 
-    for i, j in solution.unknown_cells(area=area):
+    # pick an unkown cell to collapse and recurse
+    unknown = solution.unknown_cells(area=area)
+    if len(unknown):
+        i, j = unknown[0]
         options = [False]
         if solution.can_place_star(i, j):
             options.append(True)
@@ -157,7 +161,6 @@ def solve_area(board, area, solution=None):
 def solve_fully_defined_areas(board, solution=None):
     solution = solution or Solution(board)
 
-    visit_count = dict()
     # unsolved areas ordered by count of unknown cells
     ordered_areas = list(
         sorted(
@@ -167,40 +170,33 @@ def solve_fully_defined_areas(board, solution=None):
     )
     prev_soln = None
 
-    while len(ordered_areas):  # and (prev_soln is None or prev_soln != solution):
+    while True:
         prev_soln = solution.copy()
-        area = ordered_areas.pop(0)
-        visit_count[area] = visit_count.get(area, 0) + 1
 
-        # board.draw_solution_with_ruled_out(solution, highlight={t: bcolors.OKBLUE for t in area})
-        solns = solve_area(board, area, solution)
-        # input(f"round: missing {solution.count_unknown(area=area)} recursions {c}")
+        for area in ordered_areas:
+            solns = solve_area(board, area, solution)
 
-        if len(solns) > 1:
-            # update with known cells that match in all possible solutions
-            solns = set(map(lambda s: solution.copy().update_from_set(s).to_set(), solns))
-            s = solns.pop()
-            common_cells = reduce(lambda a, b: a.intersection(b), solns, s)
-            if len(common_cells):
-                solution.update_from_set(common_cells)
+            if len(solns) > 1:
+                # update with known cells that match in all possible solutions
+                solns = set(map(lambda s: solution.copy().update_from_set(s).to_set(), solns))
+                s = solns.pop()
+                common_cells = reduce(lambda a, b: a.intersection(b), solns, s)
+                if len(common_cells):
+                    solution.update_from_set(common_cells)
+            elif len(solns) > 0:
+                solution.update_from_set(solns.pop())
 
-        else:
-            solution.update_from_set(solns.pop())
+            # start over again with smaller areas if we update
+            if solution != prev_soln:
+                break
 
-        # decrement visit count of areas that were changed by this work
-        dec_areas = set(
-            board.area_for_cell(i, j)
-            for i, j in solution.cell_index_iter
-            if solution[i][j] != prev_soln
-        )
-        for a in dec_areas:
-            visit_count[a] = visit_count.get(a, 1) - 1
+        if prev_soln == solution:
+            break
 
         ordered_areas = list(
             sorted(
                 filter(lambda a: not solution.area_solved(a), board.areas),
-                key=lambda a: solution.count_unknown(area=a)
-                + visit_count.get(a, 0),  # * len(ordered_areas)
+                key=lambda a: solution.count_unknown(area=a),
             )
         )
 
@@ -255,56 +251,64 @@ def eliminate_contained(board, solution=None):
     return solution
 
 
-def brute_force(board, solution=None):
-    solution = solution or Solution(board)
+def _solver(board, inp, out):
+    while True:
+        solution = inp.get()
 
-    unsolved_areas = [area for area in board.areas if solution.count_unknown(area=area)]
-    # solve smallest first to apply most constraints
-    unsolved_areas = sorted(unsolved_areas, key=lambda a: solution.count_unknown(area=a))
+        unsolved_areas = [area for area in board.areas if solution.count_unknown(area=area)]
+        # solve smallest first to apply most constraints
+        unsolved_areas = sorted(unsolved_areas, key=lambda a: solution.count_unknown(area=a))
 
-    if len(unsolved_areas) == 0 and solution.verify():
-        return solution
+        if len(unsolved_areas) == 0 and solution.verify():
+            return solution
 
-    for a in unsolved_areas:
-        next_solns = []
-        for a_soln in solve_area(board, a, solution):
-            tmp_soln = solution.copy()
-            tmp_soln.update_from_set(a_soln)
-            next_solns.append(tmp_soln)
+        for a in unsolved_areas:
+            for a_soln in solve_area(board, a, solution):
+                tmp_soln = solution.copy()
+                tmp_soln.update_from_set(a_soln)
+                tmp_soln = solve_fully_defined_areas(board, tmp_soln)
 
-        for tmp_soln in sorted(next_solns, key=lambda s: s.count_unknown()):
-            # recurse with area solution applied
-            res = brute_force(board, tmp_soln)
+                if tmp_soln.verify():
+                    out.put(tmp_soln)
+                    return
+                else:
+                    inp.put(tmp_soln)
 
-            if res:
-                return res
 
-    return None
+def _parallel_solve(board, solution):
+    inp = mp.Queue()
+    inp.put(solution)
+    out = mp.Queue()
+
+    pool = [mp.Process(target=_solver, args=(board, inp, out)) for _ in range(16)]
+    for p in pool:
+        p.start()
+
+    try:
+        while True:
+            try:
+                soln = out.get(timeout=1)
+            except:
+                pass
+            else:
+                return soln
+    finally:
+        for p in pool:
+            p.kill()
+            p.join()
 
 
 def solve(board):
-    """ Top level solve procedure for a board """
+    """Top level solve procedure for a board"""
 
-    past_solution = set()
     solution = eliminate_contained(board)
     solution = solve_fully_defined_areas(board, solution)
     board.draw_solution_with_ruled_out(solution)
-    print("Undefined:", sum(solution[i][j] is None for i, j in board.cell_index_iter))
-    return solution
+    print(
+        "Undefined after initial constraints:",
+        sum(solution[i][j] is None for i, j in board.cell_index_iter),
+    )
+    if solution.verify():
+        return solution
 
-    # while True:
-    #    # look for forced false cells
-    #    solution = eliminate_contained(board, solution)
-
-    #    # solve the fully defined areas
-    #    solution = solve_fully_defined_areas(board, solution)
-
-    #    new_soln = solution.to_set()
-    #    if past_solution == new_soln:
-    #        break
-
-    #    past_solution = new_soln
-
-    # board.draw_solution_with_ruled_out(solution)
-    # BRUTE!
-    # return brute_force(board, solution)
+    return _parallel_solve(board, solution)
